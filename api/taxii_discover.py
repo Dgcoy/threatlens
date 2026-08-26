@@ -55,6 +55,14 @@ def discover_taxii(discovery_url: str, auth=None, timeout: int = DEFAULT_TIMEOUT
     api_root, can_read}], "errors": [...]}. Raises ValueError if the server
     accepts neither TAXII 2.1 nor 2.0, or if no collections could be reached.
     """
+    # TAXII 1.x discovery paths (/taxii/discovery) are a common trap — the
+    # server often answers them with a confusing 500 instead of a 404/406.
+    path = discovery_url.split("?", 1)[0].rstrip("/")
+    if path.endswith("/discovery") or path.endswith("/taxii/discovery"):
+        raise ValueError(
+            "that looks like a TAXII 1.x discovery URL — ThreatLens supports "
+            "TAXII 2.0/2.1. Use the server's TAXII 2.x discovery URL "
+            "(AlienVault OTX: https://otx.alienvault.com/taxii/)")
     last_error = None
     for version, accept in (("2.1", ACCEPT_21), ("2.0", ACCEPT_20)):
         try:

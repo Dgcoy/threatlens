@@ -368,6 +368,44 @@ def test_taxii_discover_falls_back_to_v20(client, monkeypatch):
     assert r.json()["collections"][0]["id"] == "col-20"
 
 
+def test_taxii_discover_rejects_taxii1x_url(client):
+    _login(client)
+    r = client.post("/api/taxii/discover",
+                    json={"discovery_url": "https://otx.alienvault.com/taxii/discovery"})
+    assert r.status_code == 400
+    assert "TAXII 1.x" in r.json()["detail"]
+
+
+def test_taxii_discover_uses_provided_credentials(client, monkeypatch):
+    """Username/password from the form must be sent as Basic Auth on every
+    request in the discovery chain (discovery, api root, collections)."""
+    _login(client)
+    seen_auth = {}
+    ok = lambda: None  # noqa: E731
+
+    def fake_get(url, headers=None, auth=None, timeout=None):
+        seen_auth[url] = auth
+        if url.endswith("/taxii/"):
+            return SimpleNamespace(status_code=200, json=lambda: {
+                "api_roots": ["https://auth.example/taxii/root"]}, raise_for_status=ok)
+        if url.endswith("/collections/"):
+            return SimpleNamespace(status_code=200, json=lambda: {
+                "collections": [{"id": "c1", "title": "Authed"}]}, raise_for_status=ok)
+        return SimpleNamespace(status_code=200, json=lambda: {}, raise_for_status=ok)
+
+    monkeypatch.setattr("taxii_discover.requests.get", fake_get)
+    r = client.post("/api/taxii/discover",
+                    json={"discovery_url": "https://auth.example/taxii/",
+                          "username": "my-otx-key", "password": ""})
+    assert r.status_code == 200
+    assert r.json()["collections"][0]["id"] == "c1"
+    # every request in the chain carried the credentials as Basic Auth
+    # (discovery, api root, collections = 3 requests)
+    assert len(seen_auth) == 3
+    for url, auth in seen_auth.items():
+        assert auth == ("my-otx-key", ""), url
+
+
 def test_taxii_discover_requires_url(client):
     _login(client)
     assert client.post("/api/taxii/discover", json={}).status_code == 400
