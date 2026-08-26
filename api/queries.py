@@ -235,10 +235,13 @@ class Repo:
         if not fields:
             return self.feed(feed_id)
         params.append(feed_id)
-        with self._conn.cursor() as cur:
-            cur.execute(
-                f"UPDATE feeds SET {', '.join(fields)} WHERE id = %s", params)
-        self._conn.commit()
+        try:
+            with self._conn.cursor() as cur:
+                cur.execute(
+                    f"UPDATE feeds SET {', '.join(fields)} WHERE id = %s", params)
+        except UniqueViolation:
+            raise ValueError(
+                f"a feed named {data.get('name')!r} already exists")
         return self.feed(feed_id)
 
     def delete_feed(self, feed_id: int) -> bool:

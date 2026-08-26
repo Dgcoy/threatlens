@@ -124,6 +124,11 @@ ALTER TABLE events ADD COLUMN IF NOT EXISTS hostname text;
 ALTER TABLE detections DROP CONSTRAINT IF EXISTS detections_match_type_check;
 ALTER TABLE detections ADD CONSTRAINT detections_match_type_check
     CHECK (match_type IN ('src','dst','host'));
+-- feed names must be unique among LIVE feeds only: soft-deleted feeds keep
+-- their row (for detection attribution) but must free the name for re-use
+ALTER TABLE feeds DROP CONSTRAINT IF EXISTS feeds_name_key;
+CREATE UNIQUE INDEX IF NOT EXISTS feeds_name_active_idx
+    ON feeds (name) WHERE deleted_at IS NULL;
 """
 
 

@@ -355,7 +355,10 @@ async def api_create_feed(request: Request, repo: Repo = Depends(get_repo)):
 async def api_update_feed(feed_id: int, request: Request,
                           repo: Repo = Depends(get_repo)):
     data = await request.json()
-    feed = repo.update_feed(feed_id, data)
+    try:
+        feed = repo.update_feed(feed_id, data)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     if not feed:
         raise HTTPException(404, "feed not found")
     return feed

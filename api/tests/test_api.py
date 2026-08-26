@@ -229,6 +229,15 @@ def test_feed_logs_endpoint(client):
     assert logs[1]["level"] == "error"
 
 
+def test_update_feed_duplicate_name_returns_400(client, monkeypatch):
+    _login(client)
+    monkeypatch.setattr(client.app.state.repo, "update_feed",
+                        lambda fid, data: (_ for _ in ()).throw(ValueError("a feed named 'X' already exists")))
+    r = client.put("/api/feeds/1", json={"name": "X"})
+    assert r.status_code == 400
+    assert "already exists" in r.json()["detail"]
+
+
 def test_create_feed_ok(client):
     _login(client)
     r = client.post("/api/feeds", json={"name": "My feed", "type": "plain",
