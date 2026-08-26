@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThreatLens — Dashboard</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header>
+  <div class="logo">🛰️ Threat<span>Lens</span></div>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/detections">Detections</a>
+    <a href="/events">Events</a>
+    <a href="/feeds">Feeds</a>
+    <a href="/iocs">IOCs</a>
+  </nav>
+  <span class="pin" onclick="logout()">Logout</span>
+</header>
+<main>
+  <div class="arena-wrap" id="arena"></div>
+  <div class="cards" id="cards"></div>
+  <div class="grid2">
+    <div class="panel">
+      <h2>Recent detections</h2>
+      <div id="detections"><div class="empty">Loading…</div></div>
+    </div>
+    <div class="panel">
+      <h2>Live traffic</h2>
+      <div id="events"><div class="empty">Loading…</div></div>
+    </div>
+  </div>
+</main>
+<div class="modal-backdrop" id="modal"></div>
+<script src="/static/js/app.js"></script>
+<script>
+const MAX_ROWS = 14;
+
+async function loadStats() {
+  const s = await api("/api/stats");
+  const cards = [
+    ["Events today", s.events_today, s.events_today > 0 ? "" : "dim"],
+    ["Detections (24h)", s.detections_24h, s.detections_24h > 0 ? "danger" : ""],
+    ["Active feeds", s.active_feeds, "ok"],
+    ["IOCs active", s.iocs_active.toLocaleString(), ""],
+  ];
+  el("cards").innerHTML = cards.map(([k, v, cls]) =>
+    `<div class="card"><div class="k">${k}</div><div class="v ${cls}">${Number(v).toLocaleString()}</div></div>`).join("");
+}
+
+function detRow(d) {
+  const when = fmtAgo(d.created_at);
+  return `<tr style="cursor:pointer" onclick="showDet(${d.id})">
+    <td class="mono">${when}</td>
+    <td>${badgeForMatch(d.match_type)} <span class="mono">${esc(d.matched_value)}</span></td>
+    <td><span class="badge feed">${esc(d.feed_name)}</span></td>
+    <td class="mono dim">${d.event_action ? esc(d.event_action) : "—"}</td>
+  </tr>`;
+}
+
+async function loadDetections() {
+  const dets = await api("/api/detections?limit=" + MAX_ROWS);
+  el("detections").innerHTML = dets.length
+    ? `<table><thead><tr><th>When</th><th>Indicator</th><th>Feed</th><th>Action</th></tr></thead>
+       <tbody>${dets.map(detRow).join("")}</tbody></table>`
+    : `<div class="empty">No detections yet — your network is quiet.</div>`;
+}
+
+function evRow(e) {
+  const flagged = (e.det_count || 0) > 0;
+  const src = e.src_ip ? `<span class="mono">${esc(e.src_ip)}</span>` : `<span class="dim">—</span>`;
+  const dst = e.dst_ip ? `<span class="mono">${esc(e.dst_ip)}</span>` : `<span class="dim">—</span>`;
+  return `<tr class="${flagged ? "detected" : ""}" style="cursor:pointer" onclick="showEvent(${e.id})">
+    <td class="mono dim">${fmtTs(e.ts).slice(5, 16)}</td>
+    <td>${src}</td>
+    <td>${dst}</td>
+    <td><span class="pill">${esc(e.proto || "—")}</span>${e.dst_port ? `<span class="pill">:${esc(e.dst_port)}</span>` : ""}</td>
+    <td>${e.action ? esc(e.action) : '<span class="dim">—</span>'}</td>
+    <td>${flagged ? `<span class="badge err">${e.det_count} ⚠</span>` : ""}</td>
+  </tr>`;
+}
+
+async function loadEvents() {
+  const evs = await api("/api/events?limit=" + MAX_ROWS + "&flows_only=1");
+  el("events").innerHTML = evs.length
+    ? `<table><thead><tr><th>Time (UTC)</th><th>SRC</th><th>DST</th><th>Proto</th><th>Action</th><th></th></tr></thead>
+       <tbody>${evs.map(evRow).join("")}</tbody></table>`
+    : `<div class="empty">No traffic yet — flows with a source/destination appear here (kernel/system chatter is excluded).</div>`;
+}
+
+async function showDet(id) {
+  const d = await api("/api/detections/" + id);
+  openModal(`
+    <h3>Detection #${d.id} ${badgeForMatch(d.match_type)}</h3>
+    <div class="row"><span class="k">Indicator</span><span class="mono">${esc(d.matched_value)}</span></div>
+    <div class="row"><span class="k">Feed</span><span class="badge feed">${esc(d.feed_name)}</span></div>
+    <div class="row"><span class="k">IOC detail</span><span>${esc(d.ioc_description || "—")}</span></div>
+    <div class="row"><span class="k">IOC tags</span><span>${(d.ioc_tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join("") || "—"}</span></div>
+    <div class="row"><span class="k">IOC type</span><span class="pill">${esc(d.ioc_type || "—")}</span></div>
+    <div class="row"><span class="k">IOC seen</span><span class="dim">${fmtTs(d.ioc_first_seen)} → ${fmtTs(d.ioc_last_seen)}</span></div>
+    <div class="row"><span class="k">Reference</span><span>${d.ioc_reference ? `<a href="${esc(d.ioc_reference)}" target="_blank" rel="noopener">${esc(d.ioc_reference)}</a>` : "—"}</span></div>
+    <div class="row"><span class="k">Event</span><span class="mono">#${d.event_id} · ${fmtTs(d.event_ts)} · ${esc(d.event_action || "")} · ${esc(d.src_ip || "")} → ${esc(d.dst_ip || "")} ${esc(d.proto || "")}${d.dst_port ? ":" + esc(d.dst_port) : ""}</span></div>
+    <pre class="raw">${esc(d.event_raw)}</pre>`);
+}
+
+async function showEvent(id) {
+  const e = await api("/api/events/" + id);
+  openModal(`
+    <h3>Event #${e.id} <span class="dim">${fmtTs(e.ts)}</span></h3>
+    <div class="row"><span class="k">Host</span><span>${esc(e.host || "—")}</span></div>
+    <div class="row"><span class="k">Src → Dst</span><span class="mono">${esc(e.src_ip || "—")} → ${esc(e.dst_ip || "—")}</span></div>
+    <div class="row"><span class="k">Proto</span><span class="pill">${esc(e.proto || "—")}</span> <span class="k"></span><span>${e.src_port ? `SPT ${e.src_port}` : ""} ${e.dst_port ? `DPT ${e.dst_port}` : ""}</span></div>
+    <div class="row"><span class="k">Action</span><span class="pill">${esc(e.action || "—")}</span></div>
+    <div class="row"><span class="k">Hostname</span><span class="mono">${esc(e.hostname || "—")}</span></div>
+    <div class="row"><span class="k">Detections</span><span>${(e.detections || []).length}</span></div>
+    ${(e.detections || []).map(d => `<div class="row"><span class="k"></span><span>${badgeForMatch(d.match_type)} <span class="mono">${esc(d.matched_value)}</span> <span class="badge feed">${esc(d.feed_name)}</span></span></div>`).join("")}
+    <pre class="raw">${esc(e.raw)}</pre>`);
+}
+
+async function tick() {
+  try {
+    await Promise.all([loadStats(), loadDetections(), loadEvents()]);
+  } catch (e) { /* auth redirect handled in api() */ }
+}
+tick();
+setInterval(tick, 10000);
+
+// live ingestion arena (WebSocket)
+new LiveIngest("arena", { onDetection: showDetectionToasts });
+</script>
+</body>
+</html>

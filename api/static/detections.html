@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThreatLens — Detections</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header>
+  <div class="logo">🛰️ Threat<span>Lens</span></div>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/detections">Detections</a>
+    <a href="/events">Events</a>
+    <a href="/feeds">Feeds</a>
+    <a href="/iocs">IOCs</a>
+  </nav>
+  <span class="pin" onclick="logout()">Logout</span>
+</header>
+<main>
+  <div class="panel">
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="Search indicator / feed…" oninput="debouncedLoad()">
+      <select id="feedFilter" onchange="load()"><option value="">All feeds</option></select>
+      <button onclick="load()">Refresh</button>
+    </div>
+    <div id="table"><div class="empty">Loading…</div></div>
+  </div>
+</main>
+<div class="modal-backdrop" id="modal"></div>
+<script src="/static/js/app.js"></script>
+<script>
+let t;
+const debouncedLoad = () => { clearTimeout(t); t = setTimeout(load, 250); };
+
+async function init() {
+  const feeds = await api("/api/feeds");
+  el("feedFilter").innerHTML = '<option value="">All feeds</option>' +
+    feeds.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join("");
+}
+
+async function load() {
+  const q = el("q").value.trim();
+  const feed = el("feedFilter").value;
+  const params = new URLSearchParams({ limit: "100" });
+  if (q) params.set("q", q);
+  if (feed) params.set("feed_id", feed);
+  const dets = await api("/api/detections?" + params);
+  if (!dets.length) { el("table").innerHTML = '<div class="empty">No detections match.</div>'; return; }
+  el("table").innerHTML = `<table>
+    <thead><tr><th>ID</th><th>When</th><th>Match</th><th>Indicator</th><th>Feed</th><th>Event</th><th>Src → Dst</th><th>Proto</th><th>Action</th></tr></thead>
+    <tbody>${dets.map(d => `
+      <tr style="cursor:pointer" onclick="showDet(${d.id})">
+        <td class="mono dim">#${d.id}</td>
+        <td class="mono dim">${fmtAgo(d.created_at)}</td>
+        <td>${badgeForMatch(d.match_type)}</td>
+        <td class="mono">${esc(d.matched_value)}</td>
+        <td><span class="badge feed">${esc(d.feed_name)}</span></td>
+        <td class="mono dim">#${d.event_id} ${fmtAgo(d.event_ts)}</td>
+        <td class="mono">${esc(d.src_ip || "—")} → ${esc(d.dst_ip || "—")}</td>
+        <td><span class="pill">${esc(d.proto || "—")}</span></td>
+        <td>${esc(d.event_action || "—")}</td>
+      </tr>`).join("")}</tbody></table>`;
+}
+
+async function showDet(id) {
+  const d = await api("/api/detections/" + id);
+  openModal(`
+    <h3>Detection #${d.id} ${badgeForMatch(d.match_type)}</h3>
+    <div class="row"><span class="k">Indicator</span><span class="mono">${esc(d.matched_value)}</span></div>
+    <div class="row"><span class="k">Feed</span><span class="badge feed">${esc(d.feed_name)}</span></div>
+    <div class="row"><span class="k">IOC detail</span><span>${esc(d.ioc_description || "—")}</span></div>
+    <div class="row"><span class="k">IOC tags</span><span>${(d.ioc_tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join("") || "—"}</span></div>
+    <div class="row"><span class="k">IOC type</span><span class="pill">${esc(d.ioc_type || "—")}</span></div>
+    <div class="row"><span class="k">IOC severity</span><span>${esc(d.ioc_severity || "—")}</span></div>
+    <div class="row"><span class="k">IOC seen</span><span class="dim">${fmtTs(d.ioc_first_seen)} → ${fmtTs(d.ioc_last_seen)}</span></div>
+    <div class="row"><span class="k">Reference</span><span>${d.ioc_reference ? `<a href="${esc(d.ioc_reference)}" target="_blank" rel="noopener">${esc(d.ioc_reference)}</a>` : "—"}</span></div>
+    <div class="row"><span class="k">Event</span><span class="mono">#${d.event_id} · ${fmtTs(d.event_ts)} · host ${esc(d.event_host || "—")} · ${esc(d.event_action || "")} · ${esc(d.src_ip || "")} → ${esc(d.dst_ip || "")} ${esc(d.proto || "")}${d.dst_port ? ":" + esc(d.dst_port) : ""}</span></div>
+    <pre class="raw">${esc(d.event_raw)}</pre>`);
+}
+
+init();
+load();
+setInterval(load, 15000);
+</script>
+</body>
+</html>

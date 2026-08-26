@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThreatLens — Feeds</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header>
+  <div class="logo">🛰️ Threat<span>Lens</span></div>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/detections">Detections</a>
+    <a href="/events">Events</a>
+    <a href="/feeds">Feeds</a>
+    <a href="/iocs">IOCs</a>
+  </nav>
+  <span class="pin" onclick="logout()">Logout</span>
+</header>
+<main>
+  <div class="panel">
+    <h2>Threat intelligence feeds</h2>
+    <div id="table"><div class="empty">Loading…</div></div>
+  </div>
+
+  <div class="panel">
+    <h2>Add feed</h2>
+    <div style="padding:16px 20px; max-width: 760px">
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0 18px">
+        <div>
+          <label>Name</label>
+          <input id="f_name" style="width:100%" placeholder="e.g. My STIX bundle">
+        </div>
+        <div>
+          <label>Type</label>
+          <select id="f_type" style="width:100%" onchange="typeChanged()">
+            <option value="plain">Plain text (line per IOC)</option>
+            <option value="csv">CSV (column-mapped)</option>
+            <option value="stix">STIX 2.x bundle (JSON)</option>
+            <option value="taxii">TAXII 2.x collection</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="plainFields">
+        <label>Source URL</label>
+        <input id="f_url" style="width:100%" placeholder="https://example.com/blocklist.txt">
+      </div>
+
+      <div id="csvFields" style="display:none">
+        <label>Source URL</label>
+        <input id="f_url_csv" style="width:100%" placeholder="https://example.com/feed.csv">
+        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:0 14px">
+          <div><label>Value column (1-based)</label><input id="f_vcol" type="number" value="1" min="1"></div>
+          <div><label>Description column</label><input id="f_dcol" type="number" placeholder="—"></div>
+          <div><label>Tags column</label><input id="f_tcol" type="number" placeholder="—"></div>
+        </div>
+        <div style="display:grid; grid-template-columns: repeat(3, 1fr); gap:0 14px">
+          <div><label>Reference column</label><input id="f_rcol" type="number" placeholder="—"></div>
+          <div><label>Delimiter</label><input id="f_delim" value="," style="width:100%"></div>
+          <div><label>Header row?</label>
+            <select id="f_header" style="width:100%"><option value="0">No</option><option value="1">Yes</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div id="stixFields" style="display:none">
+        <label>Bundle URL</label>
+        <input id="f_url_stix" style="width:100%" placeholder="https://example.com/bundle.json">
+      </div>
+
+      <div id="taxiiFields" style="display:none">
+        <label>Discovery URL</label>
+        <input id="f_url_taxii" style="width:100%" placeholder="https://taxii.example.com/taxii/">
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0 14px">
+          <div><label>Collection ID</label><input id="f_coll" style="width:100%"></div>
+          <div><label>TAXII version</label>
+            <select id="f_ver" style="width:100%"><option value="2.0">2.0</option><option value="2.1">2.1</option></select>
+          </div>
+        </div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0 14px">
+          <div><label>Username (optional)</label><input id="f_user" style="width:100%" autocomplete="off"></div>
+          <div><label>Password (optional)</label><input id="f_pass" type="password" style="width:100%" autocomplete="new-password"></div>
+        </div>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0 14px">
+        <div><label>Pull interval (minutes)</label><input id="f_minutes" type="number" value="1440" min="5"></div>
+      </div>
+
+      <div style="margin-top:16px"><button class="primary" onclick="addFeed()">Add feed</button> <span id="addErr" class="dim"></span></div>
+    </div>
+  </div>
+</main>
+<script src="/static/js/app.js"></script>
+<script>
+const TYPES = ["plain", "csv", "stix", "taxii"];
+
+function typeChanged() {
+  const t = el("f_type").value;
+  TYPES.forEach(x => el(x + "Fields").style.display = x === t ? "" : "none");
+}
+
+async function load() {
+  const feeds = await api("/api/feeds");
+  if (!feeds.length) { el("table").innerHTML = '<div class="empty">No feeds yet — add one below.</div>'; return; }
+  el("table").innerHTML = `<table>
+    <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Source</th><th>IOCs</th><th>Interval</th><th>Last pull</th><th>Status</th><th>Enabled</th><th>Actions</th></tr></thead>
+    <tbody>${feeds.map(f => `
+      <tr>
+        <td class="mono dim">#${f.id}</td>
+        <td>${esc(f.name)}</td>
+        <td><span class="pill">${esc(f.type)}</span></td>
+        <td class="mono" style="max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${esc(f.source_url || "")}">${esc(f.source_url || "—")}</td>
+        <td class="mono">${f.ioc_count}</td>
+        <td class="mono dim">${f.auto_pull_minutes}m</td>
+        <td class="mono dim">${f.last_pull ? fmtAgo(f.last_pull) : "never"}</td>
+        <td>${f.last_status ? (String(f.last_status).startsWith("ok") ? `<span class="badge ok">${esc(f.last_status)}</span>` : `<span class="badge err">${esc(f.last_status)}</span>`) : '<span class="dim">—</span>'}</td>
+        <td><input type="checkbox" ${f.enabled ? "checked" : ""} onchange="toggleFeed(${f.id}, this.checked)"></td>
+        <td style="white-space:nowrap">
+          <button onclick="pullFeed(${f.id})">Pull now</button>
+          <button class="danger" onclick="deleteFeed(${f.id}, '${esc(f.name)}')">Delete</button>
+        </td>
+      </tr>`).join("")}</tbody></table>`;
+}
+
+async function addFeed() {
+  const type = el("f_type").value;
+  el("addErr").textContent = "";
+  let payload = { name: el("f_name").value, type, auto_pull_minutes: parseInt(el("f_minutes").value) || 1440 };
+  try {
+    if (type === "plain") {
+      payload.source_url = el("f_url").value;
+    } else if (type === "csv") {
+      payload.source_url = el("f_url_csv").value;
+      payload.parser_config = {
+        has_header: el("f_header").value === "1",
+        delimiter: el("f_delim").value || ",",
+        value_column: parseInt(el("f_vcol").value) || 1,
+        description_column: parseInt(el("f_dcol").value) || null,
+        tags_column: parseInt(el("f_tcol").value) || null,
+        reference_column: parseInt(el("f_rcol").value) || null,
+      };
+    } else if (type === "stix") {
+      payload.source_url = el("f_url_stix").value;
+    } else if (type === "taxii") {
+      payload.source_url = el("f_url_taxii").value;
+      payload.parser_config = { collection_id: el("f_coll").value, version: el("f_ver").value };
+      if (el("f_user").value) payload.auth_json = { username: el("f_user").value, password: el("f_pass").value };
+    }
+    if (!payload.source_url) throw new Error("source URL required");
+    await api("/api/feeds", { method: "POST", body: JSON.stringify(payload) });
+    el("addErr").textContent = "✅ added";
+    ["f_name", "f_url", "f_url_csv", "f_url_stix", "f_url_taxii", "f_coll", "f_user", "f_pass"].forEach(id => el(id).value = "");
+    load();
+  } catch (e) { el("addErr").textContent = "❌ " + e.message; }
+}
+
+async function toggleFeed(id, enabled) {
+  try { await api("/api/feeds/" + id, { method: "PUT", body: JSON.stringify({ enabled }) }); }
+  catch (e) { alert(e.message); load(); }
+}
+
+async function pullFeed(id) {
+  try {
+    await api("/api/feeds/" + id + "/pull", { method: "POST" });
+    load();
+    setTimeout(load, 5000);
+  } catch (e) { alert(e.message); }
+}
+
+async function deleteFeed(id, name) {
+  if (!confirm(`Delete feed "${name}"? Its IOCs will be deactivated; existing detections keep attribution.`)) return;
+  try {
+    await api("/api/feeds/" + id, { method: "DELETE" });
+    load();
+  } catch (e) { alert(e.message); }
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>

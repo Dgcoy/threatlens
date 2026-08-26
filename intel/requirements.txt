@@ -1,0 +1,5 @@
+apscheduler>=3.10
+psycopg2-binary>=2.9
+requests>=2.31
+stix2>=3.0
+taxii2-client>=2.3

@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThreatLens — IOCs</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header>
+  <div class="logo">🛰️ Threat<span>Lens</span></div>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/detections">Detections</a>
+    <a href="/events">Events</a>
+    <a href="/feeds">Feeds</a>
+    <a href="/iocs">IOCs</a>
+  </nav>
+  <span class="pin" onclick="logout()">Logout</span>
+</header>
+<main>
+  <div class="panel">
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="Search value / description…" oninput="debouncedLoad()">
+      <select id="typeFilter" onchange="load()">
+        <option value="">All types</option>
+        <option value="ip">IP</option>
+        <option value="cidr">CIDR</option>
+        <option value="domain">Domain</option>
+        <option value="url">URL</option>
+      </select>
+      <select id="feedFilter" onchange="load()"><option value="">All feeds</option></select>
+      <button onclick="load()">Refresh</button>
+    </div>
+    <div id="table"><div class="empty">Loading…</div></div>
+  </div>
+</main>
+<div class="modal-backdrop" id="modal"></div>
+<script src="/static/js/app.js"></script>
+<script>
+let t;
+const debouncedLoad = () => { clearTimeout(t); t = setTimeout(load, 250); };
+
+async function init() {
+  const feeds = await api("/api/feeds");
+  el("feedFilter").innerHTML = '<option value="">All feeds</option>' +
+    feeds.map(f => `<option value="${f.id}">${esc(f.name)}</option>`).join("");
+}
+
+async function load() {
+  const q = el("q").value.trim();
+  const params = new URLSearchParams({ limit: "200" });
+  if (q) params.set("q", q);
+  if (el("typeFilter").value) params.set("type", el("typeFilter").value);
+  if (el("feedFilter").value) params.set("feed_id", el("feedFilter").value);
+  const iocs = await api("/api/iocs?" + params);
+  if (!iocs.length) { el("table").innerHTML = '<div class="empty">No IOCs match.</div>'; return; }
+  el("table").innerHTML = `<table>
+    <thead><tr><th>ID</th><th>Type</th><th>Value</th><th>Description</th><th>Tags</th><th>Feed</th><th>Last seen</th></tr></thead>
+    <tbody>${iocs.map(i => `
+      <tr style="cursor:pointer" onclick="showIoc(${i.id})">
+        <td class="mono dim">#${i.id}</td>
+        <td><span class="pill">${esc(i.type)}</span></td>
+        <td class="mono" style="max-width:360px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap" title="${esc(i.value)}">${esc(i.value)}</td>
+        <td>${esc(i.description || "—")}</td>
+        <td>${(i.tags || []).slice(0, 4).map(t => `<span class="tag">${esc(t)}</span>`).join("") || "—"}</td>
+        <td><span class="badge feed">${esc(i.feed_name)}</span></td>
+        <td class="mono dim">${fmtAgo(i.last_seen)}</td>
+      </tr>`).join("")}</tbody></table>`;
+}
+
+async function showIoc(id) {
+  const i = await api("/api/iocs/" + id);
+  openModal(`
+    <h3>IOC #${i.id} <span class="pill">${esc(i.type)}</span></h3>
+    <div class="row"><span class="k">Value</span><span class="mono">${esc(i.value)}</span></div>
+    <div class="row"><span class="k">Feed</span><span class="badge feed">${esc(i.feed_name)}</span></div>
+    <div class="row"><span class="k">Description</span><span>${esc(i.description || "—")}</span></div>
+    <div class="row"><span class="k">Tags</span><span>${(i.tags || []).map(t => `<span class="tag">${esc(t)}</span>`).join("") || "—"}</span></div>
+    <div class="row"><span class="k">Severity</span><span>${esc(i.severity || "—")}</span></div>
+    <div class="row"><span class="k">First seen</span><span class="dim">${fmtTs(i.first_seen)}</span></div>
+    <div class="row"><span class="k">Last seen</span><span class="dim">${fmtTs(i.last_seen)}</span></div>
+    <div class="row"><span class="k">Reference</span><span>${i.reference ? `<a href="${esc(i.reference)}" target="_blank" rel="noopener">${esc(i.reference)}</a>` : "—"}</span></div>`);
+}
+
+init();
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>

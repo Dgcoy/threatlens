@@ -1,0 +1,7 @@
+fastapi>=0.111
+uvicorn>=0.30
+# uvicorn 0.52 drops WS frames with websockets >= 15 (new asyncio impl);
+# pin the legacy line which uvicorn's websockets protocol still uses
+websockets>=12.0,<15
+itsdangerous>=2.1
+psycopg2-binary>=2.9

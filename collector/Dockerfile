@@ -1,0 +1,12 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY collector/requirements.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY shared/ shared/
+COPY collector/*.py ./
+
+EXPOSE 5514/udp
+CMD ["python3", "syslog_server.py"]

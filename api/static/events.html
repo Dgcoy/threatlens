@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ThreatLens — Events</title>
+<link rel="stylesheet" href="/static/css/app.css">
+</head>
+<body>
+<header>
+  <div class="logo">🛰️ Threat<span>Lens</span></div>
+  <nav>
+    <a href="/">Dashboard</a>
+    <a href="/detections">Detections</a>
+    <a href="/events">Events</a>
+    <a href="/feeds">Feeds</a>
+    <a href="/iocs">IOCs</a>
+  </nav>
+  <span class="pin" onclick="logout()">Logout</span>
+</header>
+<main>
+  <div class="panel">
+    <div class="toolbar">
+      <input type="search" id="q" placeholder="Search IP / hostname / raw text…" oninput="debouncedLoad()">
+      <label style="margin:0; display:flex; align-items:center; gap:6px; color:var(--text)">
+        <input type="checkbox" id="flows" checked onchange="load()"> Flows only
+      </label>
+      <button onclick="load()">Refresh</button>
+      <span class="dim">click an IP → detections for it</span>
+    </div>
+    <div id="table"><div class="empty">Loading…</div></div>
+  </div>
+</main>
+<div class="modal-backdrop" id="modal"></div>
+<script src="/static/js/app.js"></script>
+<script>
+let t;
+const debouncedLoad = () => { clearTimeout(t); t = setTimeout(load, 250); };
+
+async function load() {
+  const q = el("q").value.trim();
+  const params = new URLSearchParams({ limit: "100" });
+  if (q) params.set("q", q);
+  if (el("flows").checked) params.set("flows_only", "1");
+  const evs = await api("/api/events?" + params);
+  if (!evs.length) { el("table").innerHTML = '<div class="empty">No events match.</div>'; return; }
+  el("table").innerHTML = `<table>
+    <thead><tr><th>ID</th><th>Time (UTC)</th><th>Host</th><th>Tag</th><th>SRC</th><th>DST</th><th>Proto</th><th>Action</th><th>Hostname</th><th></th></tr></thead>
+    <tbody>${evs.map(e => `
+      <tr class="${(e.det_count || 0) > 0 ? "detected" : ""}" style="cursor:pointer" onclick="showEvent(${e.id})">
+        <td class="mono dim">#${e.id}</td>
+        <td class="mono dim">${fmtTs(e.ts)}</td>
+        <td>${esc(e.host || "—")}</td>
+        <td>${esc(e.tag || "—")}</td>
+        <td class="mono">${e.src_ip ? `<a href="/detections?q=${esc(e.src_ip)}" onclick="event.stopPropagation()">${esc(e.src_ip)}</a>` : "—"}</td>
+        <td class="mono">${e.dst_ip ? `<a href="/detections?q=${esc(e.dst_ip)}" onclick="event.stopPropagation()">${esc(e.dst_ip)}</a>` : "—"}</td>
+        <td><span class="pill">${esc(e.proto || "—")}</span></td>
+        <td>${esc(e.action || "—")}</td>
+        <td class="mono">${esc(e.hostname || "—")}</td>
+        <td>${(e.det_count || 0) > 0 ? `<span class="badge err">${e.det_count} ⚠</span>` : ""}</td>
+      </tr>`).join("")}</tbody></table>`;
+}
+
+async function showEvent(id) {
+  const e = await api("/api/events/" + id);
+  openModal(`
+    <h3>Event #${e.id} <span class="dim">${fmtTs(e.ts)}</span></h3>
+    <div class="row"><span class="k">Host</span><span>${esc(e.host || "—")}</span></div>
+    <div class="row"><span class="k">Tag</span><span class="pill">${esc(e.tag || "—")}</span></div>
+    <div class="row"><span class="k">Src → Dst</span><span class="mono">${esc(e.src_ip || "—")} → ${esc(e.dst_ip || "—")}</span></div>
+    <div class="row"><span class="k">Proto / ports</span><span>${esc(e.proto || "—")} ${e.src_port ? `SPT ${e.src_port}` : ""} ${e.dst_port ? `DPT ${e.dst_port}` : ""}</span></div>
+    <div class="row"><span class="k">Action</span><span class="pill">${esc(e.action || "—")}</span></div>
+    <div class="row"><span class="k">Hostname</span><span class="mono">${esc(e.hostname || "—")}</span></div>
+    <div class="row"><span class="k">Detections</span><span>${(e.detections || []).length}</span></div>
+    ${(e.detections || []).map(d => `<div class="row"><span class="k"></span><span>${badgeForMatch(d.match_type)} <span class="mono">${esc(d.matched_value)}</span> <span class="badge feed">${esc(d.feed_name)}</span></span></div>`).join("")}
+    <pre class="raw">${esc(e.raw)}</pre>`);
+}
+
+load();
+setInterval(load, 15000);
+</script>
+</body>
+</html>
