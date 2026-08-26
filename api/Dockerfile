@@ -6,7 +6,7 @@ COPY api/requirements.txt requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY shared/ shared/
-COPY api/queries.py api/app.py ./
+COPY api/queries.py api/app.py api/taxii_discover.py ./
 COPY api/static/ static/
 
 EXPOSE 8000

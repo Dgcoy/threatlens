@@ -73,6 +73,16 @@
       <div id="taxiiFields" style="display:none">
         <label>Discovery URL</label>
         <input id="f_url_taxii" style="width:100%" placeholder="https://taxii.example.com/taxii/">
+        <div style="margin-top:8px; display:flex; gap:10px; align-items:center">
+          <button type="button" onclick="discoverCollections()">🔍 Discover collections</button>
+          <span class="dim" id="discMsg"></span>
+        </div>
+        <div id="discResult" style="display:none">
+          <label>Collection <span class="dim">(select, then it fills the field below)</span></label>
+          <select id="f_coll_sel" style="width:100%" onchange="el('f_coll').value = this.value">
+            <option value="">— collections —</option>
+          </select>
+        </div>
         <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0 14px">
           <div><label>Collection ID</label><input id="f_coll" style="width:100%"></div>
           <div><label>TAXII version</label>
@@ -168,6 +178,28 @@ async function pullFeed(id) {
     load();
     setTimeout(load, 5000);
   } catch (e) { alert(e.message); }
+}
+
+async function discoverCollections() {
+  const url = el("f_url_taxii").value.trim();
+  const msg = el("discMsg");
+  if (!url) { msg.textContent = "enter a discovery URL first"; return; }
+  const payload = { discovery_url: url };
+  if (el("f_user").value) payload.username = el("f_user").value;
+  if (el("f_pass").value) payload.password = el("f_pass").value;
+  msg.textContent = "querying…";
+  try {
+    const res = await api("/api/taxii/discover", { method: "POST", body: JSON.stringify(payload) });
+    const sel = el("f_coll_sel");
+    sel.innerHTML = '<option value="">— collections —</option>' +
+      res.collections.map(c => `<option value="${esc(c.id)}">${esc(c.title)} — ${esc(c.id)}</option>`).join("");
+    el("discResult").style.display = "block";
+    el("f_ver").value = res.version || "2.0";
+    if (res.collections.length === 1) el("f_coll").value = res.collections[0].id;
+    msg.textContent = `${res.collections.length} collection(s) on TAXII ${res.version}`;
+  } catch (e) {
+    msg.textContent = "❌ " + e.message;
+  }
 }
 
 async function deleteFeed(id, name) {

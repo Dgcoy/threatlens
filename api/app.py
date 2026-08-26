@@ -18,6 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from queries import BUCKET_ORDER, Repo, bucket_of
 from shared.schema import apply_schema, conn_from_env
+from taxii_discover import discover_taxii
 
 APP_PIN = os.environ.get("APP_PIN", "")
 SESSION_SECRET = os.environ.get("SESSION_SECRET", "")
@@ -249,6 +250,22 @@ async def api_stats(repo: Repo = Depends(get_repo)):
 async def api_buckets(repo: Repo = Depends(get_repo)):
     """Bucket tallies for the live-ingest view (REST fallback / initial paint)."""
     return {"buckets": repo.bucket_totals(), "order": BUCKET_ORDER}
+
+
+@app.post("/api/taxii/discover")
+async def api_taxii_discover(request: Request):
+    """Resolve a TAXII discovery URL into its collections (for the feed form)."""
+    body = await request.json()
+    url = (body.get("discovery_url") or "").strip()
+    if not url:
+        raise HTTPException(400, "discovery_url is required")
+    auth = None
+    if body.get("username"):
+        auth = (body["username"], body.get("password") or "")
+    try:
+        return discover_taxii(url, auth=auth)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
 
 
 @app.websocket("/ws/events")

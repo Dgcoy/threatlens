@@ -1,9 +1,11 @@
 """API route tests with a fake repo (no Postgres)."""
 
 import pytest
+import requests
 from fastapi.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 from app import WSManager, app
 from queries import bucket_of
@@ -279,3 +281,68 @@ def test_ws_snapshot_after_login(client):
         assert msg["buckets"]["Firewall · DROP"] == 50
         assert msg["events"][0]["bucket"] == "Firewall · DROP"
         assert len(msg["detections"]) == 1
+
+
+# ---- TAXII discovery ----
+
+def _fake_http_error(status):
+    resp = requests.Response()
+    resp.status_code = status
+    return requests.HTTPError(response=resp)
+
+
+def test_taxii_discover_v21(client, monkeypatch):
+    _login(client)
+    seen = {}
+
+    def fake_get(url, headers=None, auth=None, timeout=None):
+        seen[url] = headers
+        ok = lambda: None  # noqa: E731  (raise_for_status no-op)
+        if url.endswith("/taxii/"):
+            return SimpleNamespace(status_code=200, json=lambda: {
+                "default": "https://otx.example/taxii/root",
+                "api_roots": ["https://otx.example/taxii/root"]}, raise_for_status=ok)
+        if url.endswith("/collections/"):
+            return SimpleNamespace(status_code=200, json=lambda: {
+                "collections": [{"id": "7f9137a7-59ff-4fc6-957a-a90cc66c91b5",
+                                 "title": "Data feed for user: AlienVault",
+                                 "description": "d", "can_read": True}]}, raise_for_status=ok)
+        return SimpleNamespace(status_code=200, json=lambda: {}, raise_for_status=ok)
+
+    monkeypatch.setattr("taxii_discover.requests.get", fake_get)
+    r = client.post("/api/taxii/discover",
+                    json={"discovery_url": "https://otx.example/taxii/"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["version"] == "2.1"
+    assert body["collections"][0]["id"] == "7f9137a7-59ff-4fc6-957a-a90cc66c91b5"
+    # TAXII 2.1 accept header must be sent
+    assert "2.1" in seen["https://otx.example/taxii/"]["Accept"]
+
+
+def test_taxii_discover_falls_back_to_v20(client, monkeypatch):
+    _login(client)
+
+    def fake_get(url, headers=None, auth=None, timeout=None):
+        if headers["Accept"].endswith("2.1"):
+            raise _fake_http_error(406)
+        ok = lambda: None  # noqa: E731
+        if url.endswith("/taxii/"):
+            return SimpleNamespace(status_code=200, json=lambda: {
+                "api_roots": ["https://old.example/taxii/root"]}, raise_for_status=ok)
+        if url.endswith("/collections/"):
+            return SimpleNamespace(status_code=200, json=lambda: {
+                "collections": [{"id": "col-20", "title": "Legacy"}]}, raise_for_status=ok)
+        return SimpleNamespace(status_code=200, json=lambda: {}, raise_for_status=ok)
+
+    monkeypatch.setattr("taxii_discover.requests.get", fake_get)
+    r = client.post("/api/taxii/discover",
+                    json={"discovery_url": "https://old.example/taxii/"})
+    assert r.status_code == 200
+    assert r.json()["version"] == "2.0"
+    assert r.json()["collections"][0]["id"] == "col-20"
+
+
+def test_taxii_discover_requires_url(client):
+    _login(client)
+    assert client.post("/api/taxii/discover", json={}).status_code == 400
