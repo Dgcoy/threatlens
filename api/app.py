@@ -255,7 +255,10 @@ async def api_buckets(repo: Repo = Depends(get_repo)):
 @app.post("/api/taxii/discover")
 async def api_taxii_discover(request: Request):
     """Resolve a TAXII discovery URL into its collections (for the feed form)."""
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception as exc:
+        raise HTTPException(400, f"invalid request body: {exc}")
     url = (body.get("discovery_url") or "").strip()
     if not url:
         raise HTTPException(400, "discovery_url is required")
@@ -266,6 +269,9 @@ async def api_taxii_discover(request: Request):
         return discover_taxii(url, auth=auth)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
+    except Exception as exc:
+        # never let a malformed/weird server response surface as a 500
+        raise HTTPException(400, f"discovery failed: {exc}")
 
 
 @app.websocket("/ws/events")

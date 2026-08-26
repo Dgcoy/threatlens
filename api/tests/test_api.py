@@ -371,3 +371,55 @@ def test_taxii_discover_falls_back_to_v20(client, monkeypatch):
 def test_taxii_discover_requires_url(client):
     _login(client)
     assert client.post("/api/taxii/discover", json={}).status_code == 400
+
+
+def test_taxii_discover_non_json_body_returns_400(client):
+    _login(client)
+    r = client.post("/api/taxii/discover", content=b"garbage",
+                    headers={"Content-Type": "text/plain"})
+    assert r.status_code == 400
+    assert "invalid request body" in r.json()["detail"]
+
+
+def test_taxii_discover_retries_transient_errors(client, monkeypatch):
+    """Timeouts/5xx are retried with backoff, then succeed."""
+    _login(client)
+    calls = {"n": 0}
+    ok = lambda: None  # noqa: E731
+
+    def fake_get(url, headers=None, auth=None, timeout=None):
+        calls["n"] += 1
+        if url.endswith("/taxii/"):
+            if calls["n"] < 3:
+                raise requests.exceptions.ReadTimeout("read timeout")
+            return SimpleNamespace(status_code=200, json=lambda: {
+                "api_roots": ["https://slow.example/taxii/root"]}, raise_for_status=ok)
+        if url.endswith("/collections/"):
+            return SimpleNamespace(status_code=200, json=lambda: {
+                "collections": [{"id": "c1", "title": "Slow OK"}]}, raise_for_status=ok)
+        return SimpleNamespace(status_code=200, json=lambda: {}, raise_for_status=ok)
+
+    monkeypatch.setattr("taxii_discover.requests.get", fake_get)
+    r = client.post("/api/taxii/discover",
+                    json={"discovery_url": "https://slow.example/taxii/"})
+    assert r.status_code == 200
+    assert r.json()["collections"][0]["id"] == "c1"
+    assert calls["n"] >= 3     # discovery was retried
+
+
+def test_taxii_discover_reports_root_errors(client, monkeypatch):
+    """If collections can't be reached, the response includes errors."""
+    _login(client)
+    ok = lambda: None  # noqa: E731
+
+    def fake_get(url, headers=None, auth=None, timeout=None):
+        if url.endswith("/taxii/"):
+            return SimpleNamespace(status_code=200, json=lambda: {
+                "api_roots": ["https://dead.example/taxii/root"]}, raise_for_status=ok)
+        raise requests.exceptions.ConnectionError("no route to host")
+
+    monkeypatch.setattr("taxii_discover.requests.get", fake_get)
+    r = client.post("/api/taxii/discover",
+                    json={"discovery_url": "https://dead.example/taxii/"})
+    assert r.status_code == 400
+    assert "could not reach collections" in r.json()["detail"]

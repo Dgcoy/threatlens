@@ -219,7 +219,13 @@ async function discoverCollections() {
     el("discResult").style.display = "block";
     el("f_ver").value = res.version || "2.0";
     if (res.collections.length === 1) el("f_coll").value = res.collections[0].id;
-    msg.textContent = `${res.collections.length} collection(s) on TAXII ${res.version}`;
+    if (res.collections.length) {
+      msg.textContent = `${res.collections.length} collection(s) on TAXII ${res.version}`;
+    } else if (res.errors && res.errors.length) {
+      msg.textContent = "⚠ no collections: " + (res.errors[0].error || "unknown error");
+    } else {
+      msg.textContent = `no collections on TAXII ${res.version} — check the URL/auth`;
+    }
   } catch (e) {
     msg.textContent = "❌ " + e.message;
   }
