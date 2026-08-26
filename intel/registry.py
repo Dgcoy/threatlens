@@ -50,6 +50,13 @@ def record_pull(conn, feed_id: int, status: str, error: str | None = None,
             "WHERE id = %s",
             (now, status, error, feed_id),
         )
+        cur.execute(
+            "INSERT INTO feed_logs (feed_id, ts, level, message) "
+            "VALUES (%s, %s, %s, %s)",
+            (feed_id, now,
+             "error" if error else "info",
+             f"pull {'failed' if error else 'ok'}: {error or status}"),
+        )
     conn.commit()
 
 

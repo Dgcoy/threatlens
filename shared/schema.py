@@ -106,6 +106,16 @@ CREATE TABLE IF NOT EXISTS feed_pull_requests (
 );
 CREATE INDEX IF NOT EXISTS idx_pull_requests_pending
     ON feed_pull_requests (processed_at) WHERE processed_at IS NULL;
+
+-- per-feed operation log (pull attempts, errors, registrations) — shown in UI
+CREATE TABLE IF NOT EXISTS feed_logs (
+    id bigserial PRIMARY KEY,
+    feed_id integer REFERENCES feeds(id) ON DELETE CASCADE,
+    ts timestamptz NOT NULL DEFAULT now(),
+    level text NOT NULL DEFAULT 'info',   -- info | warn | error
+    message text NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_feed_logs_feed_ts ON feed_logs (feed_id, ts DESC);
 """
 
 # migrations for tables created before a column/constraint existed (idempotent)
@@ -118,13 +128,18 @@ ALTER TABLE detections ADD CONSTRAINT detections_match_type_check
 
 
 def conn_from_env() -> psycopg2.extensions.connection:
-    return psycopg2.connect(
+    # autocommit: every statement is its own transaction, so a failed query
+    # can never poison the shared connection for later requests
+    # (NOTE: psycopg2 rejects autocommit as a connect() kwarg — set it after)
+    conn = psycopg2.connect(
         host=os.environ.get("POSTGRES_HOST", "localhost"),
         port=int(os.environ.get("POSTGRES_PORT", "5432")),
         user=os.environ.get("POSTGRES_USER", "threatlens"),
         password=os.environ.get("POSTGRES_PASSWORD", ""),
         dbname=os.environ.get("POSTGRES_DB", "threatlens"),
     )
+    conn.autocommit = True
+    return conn
 
 
 def apply_schema(conn) -> None:

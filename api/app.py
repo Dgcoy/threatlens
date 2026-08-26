@@ -369,6 +369,14 @@ async def api_feed_pull(feed_id: int, repo: Repo = Depends(get_repo)):
     return {"ok": True, "feed_id": feed_id, "queued": True}
 
 
+@app.get("/api/feeds/{feed_id}/logs")
+async def api_feed_logs(feed_id: int,
+                        limit: int = Query(50, ge=1, le=500),
+                        repo: Repo = Depends(get_repo)):
+    """Per-feed operation log (pull attempts, errors, registrations)."""
+    return repo.feed_logs(feed_id, limit)
+
+
 @app.get("/api/iocs")
 async def api_iocs(feed_id: int | None = None, type: str | None = None,
                    q: str | None = None,

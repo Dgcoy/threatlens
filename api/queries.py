@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 
 import psycopg2
 import psycopg2.extras
+from psycopg2.errors import UniqueViolation
 
 from shared.schema import conn_from_env  # noqa: F401 (re-export)
 
@@ -200,16 +201,18 @@ class Repo:
         parser_config = data.get("parser_config") or {}
         auth_json = data.get("auth_json") or {}
         minutes = int(data.get("auto_pull_minutes") or 1440)
-        with self._conn.cursor() as cur:
-            cur.execute(
-                """INSERT INTO feeds (name, type, source_url, auth_json, parser_config, auto_pull_minutes)
-                   VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
-                (name, ftype, url,
-                 psycopg2.extras.Json(auth_json),
-                 psycopg2.extras.Json(parser_config), minutes),
-            )
-            feed_id = cur.fetchone()[0]
-        self._conn.commit()
+        try:
+            with self._conn.cursor() as cur:
+                cur.execute(
+                    """INSERT INTO feeds (name, type, source_url, auth_json, parser_config, auto_pull_minutes)
+                       VALUES (%s, %s, %s, %s, %s, %s) RETURNING id""",
+                    (name, ftype, url,
+                     psycopg2.extras.Json(auth_json),
+                     psycopg2.extras.Json(parser_config), minutes),
+                )
+                feed_id = cur.fetchone()[0]
+        except UniqueViolation:
+            raise ValueError(f"a feed named {name!r} already exists")
         return self.feed(feed_id)
 
     def update_feed(self, feed_id: int, data: dict) -> dict | None:
@@ -291,6 +294,13 @@ class Repo:
             FROM iocs i JOIN feeds f ON f.id = i.feed_id
             WHERE i.id = %s
         """, (ioc_id,))
+
+    def feed_logs(self, feed_id: int, limit: int = 50) -> list[dict]:
+        return _rows(self._conn, """
+            SELECT id, feed_id, ts, level, message
+            FROM feed_logs WHERE feed_id = %s
+            ORDER BY ts DESC, id DESC LIMIT %s
+        """, (feed_id, limit))
 
     # ---- live ingestion stream (WebSocket) ----
     def max_event_id(self) -> int:

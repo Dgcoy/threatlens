@@ -91,6 +91,12 @@ class FakeRepo:
         return {"id": ioc_id, "type": "ip", "value": "192.168.1.42",
                 "description": "c2", "tags": ["botnet"], "feed_name": "TestFeed"}
 
+    def feed_logs(self, feed_id, limit=50):
+        return [{"id": 1, "feed_id": feed_id, "ts": "2026-08-26T06:00:00+00:00",
+                 "level": "info", "message": "pull ok: ok (1704)"},
+                {"id": 2, "feed_id": feed_id, "ts": "2026-08-26T05:00:00+00:00",
+                 "level": "error", "message": "pull failed: timeout"}]
+
     # ---- live stream fakes ----
     def max_event_id(self):
         return 100
@@ -198,10 +204,29 @@ def test_create_feed_validation(client):
     _login(client)
     r = client.post("/api/feeds", json={"type": "plain", "source_url": "https://x"})
     assert r.status_code == 400          # missing name
+    assert "name" in r.json()["detail"].lower()
     r = client.post("/api/feeds", json={"name": "ok", "source_url": "https://x"})
     assert r.status_code == 400          # missing type
     r = client.post("/api/feeds", json={"name": "ok", "type": "bogus", "source_url": "https://x"})
     assert r.status_code == 400          # bad type
+
+
+def test_create_feed_duplicate_name_returns_400(client, monkeypatch):
+    _login(client)
+    monkeypatch.setattr(client.app.state.repo, "create_feed",
+                        lambda data: (_ for _ in ()).throw(ValueError("a feed named 'X' already exists")))
+    r = client.post("/api/feeds", json={"name": "X", "type": "plain", "source_url": "https://x.example/i.txt"})
+    assert r.status_code == 400
+    assert "already exists" in r.json()["detail"]
+
+
+def test_feed_logs_endpoint(client):
+    _login(client)
+    logs = client.get("/api/feeds/1/logs").json()
+    assert len(logs) == 2
+    assert logs[0]["level"] == "info"
+    assert "pull ok" in logs[0]["message"]
+    assert logs[1]["level"] == "error"
 
 
 def test_create_feed_ok(client):

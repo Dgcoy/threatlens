@@ -103,6 +103,7 @@
     </div>
   </div>
 </main>
+<div class="modal-backdrop" id="modal"></div>
 <script src="/static/js/app.js"></script>
 <script>
 const TYPES = ["plain", "csv", "stix", "taxii"];
@@ -130,9 +131,31 @@ async function load() {
         <td><input type="checkbox" ${f.enabled ? "checked" : ""} onchange="toggleFeed(${f.id}, this.checked)"></td>
         <td style="white-space:nowrap">
           <button onclick="pullFeed(${f.id})">Pull now</button>
+          <button onclick="viewLogs(${f.id}, '${esc(f.name)}')">Logs</button>
           <button class="danger" onclick="deleteFeed(${f.id}, '${esc(f.name)}')">Delete</button>
         </td>
       </tr>`).join("")}</tbody></table>`;
+}
+
+async function viewLogs(id, name) {
+  const logs = await api("/api/feeds/" + id + "/logs?limit=100");
+  const modal = document.getElementById("modal");
+  modal.classList.add("open");
+  modal.innerHTML = `
+    <div class="modal">
+      <span class="close" onclick="document.getElementById('modal').classList.remove('open')">✕</span>
+      <h3>📜 ${esc(name)} — feed logs</h3>
+      <div style="max-height:420px; overflow:auto">
+        ${logs.length ? logs.map(l => `
+          <div class="fl-row ${esc(l.level)}">
+            <span class="fl-ts mono dim">${fmtTs(l.ts)}</span>
+            <span class="fl-lv">${esc(l.level.toUpperCase())}</span>
+            <span class="fl-msg mono">${esc(l.message)}</span>
+          </div>`).join("")
+          : '<div class="empty">No log entries yet — pulls and errors will show up here.</div>'}
+      </div>
+      <div style="margin-top:14px; text-align:right"><button onclick="document.getElementById('modal').classList.remove('open')">Close</button></div>
+    </div>`;
 }
 
 async function addFeed() {
