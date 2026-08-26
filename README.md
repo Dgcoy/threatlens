@@ -44,7 +44,7 @@ UDM Pro ──syslog:514──▶ collector ──▶ PostgreSQL ◀── intel
 ## Quickstart
 
 ```bash
-git clone https://github.com/<you>/threatlens.git
+git clone https://github.com/Dgcoy/threatlens.git
 cd threatlens
 
 cp .env.example .env
