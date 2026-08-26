@@ -68,3 +68,32 @@ def test_poll_taxii_unknown_collection_raises():
         raise AssertionError("expected ValueError")
     except ValueError as exc:
         assert "not found" in str(exc)
+
+
+def test_install_browser_ua_injects_session_header(monkeypatch):
+    """The TAXII client must send a browser-like User-Agent (OTX-style WAFs
+    404 non-browser UAs)."""
+    import requests as _requests
+    from feed_taxii import TAXII_USER_AGENT, _install_browser_ua
+
+    monkeypatch.setattr(_requests, "Session", _requests.Session)
+    _install_browser_ua()
+    s = _requests.Session()
+    assert s.headers.get("User-Agent") == TAXII_USER_AGENT
+
+
+def test_get_objects_with_retry_retries_then_succeeds():
+    from feed_taxii import _get_objects_with_retry
+
+    calls = {"n": 0}
+
+    class FlakyColl:
+        def get_objects(self):
+            calls["n"] += 1
+            if calls["n"] < 3:
+                raise RuntimeError("transient")
+            return {"objects": [{"type": "indicator"}]}
+
+    env = _get_objects_with_retry(FlakyColl(), attempts=3)
+    assert env["objects"][0]["type"] == "indicator"
+    assert calls["n"] == 3
