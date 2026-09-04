@@ -97,7 +97,7 @@ class LiveIngest {
           <h2>Live ingestion</h2>
           <span class="rate">stream rate <b id="rateVal">0</b> events/min</span>
         </div>
-        <div class="stream-source"><span class="s-icon">🛰️</span><span class="s-label">UDM :514</span></div>
+        <div class="stream-source"><span class="s-icon">📡</span><span class="s-label">UDM :514</span></div>
         <div class="buckets" id="buckets"></div>
         <div class="arena-flash" id="arenaFlash"></div>
       </div>
