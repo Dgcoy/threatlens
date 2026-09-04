@@ -1,4 +1,4 @@
-/* ThreatLens shared frontend helpers (no dependencies, zero outbound) */
+/* Watchman shared frontend helpers (no dependencies, zero outbound) */
 
 async function api(path, opts = {}) {
   const resp = await fetch(path, {

@@ -1,8 +1,8 @@
-# ThreatLens 🛰️
+# Watchman 🛰️
 
 **UDM syslog → threat intelligence → detection dashboard.**
 
-ThreatLens listens to UniFi UDM / UDM Pro syslog, normalizes firewall and system
+Watchman listens to UniFi UDM / UDM Pro syslog, normalizes firewall and system
 traffic events, matches source/destination IPs and hostnames against pluggable
 open-source threat intelligence, and surfaces detections on a live, dark-themed
 dashboard with full feed attribution.
@@ -44,8 +44,8 @@ UDM Pro ──syslog:514──▶ collector ──▶ PostgreSQL ◀── intel
 ## Quickstart
 
 ```bash
-git clone https://github.com/Dgcoy/threatlens.git
-cd threatlens
+git clone https://github.com/Dgcoy/watchman.git
+cd watchman
 
 cp .env.example .env
 # edit .env: set POSTGRES_PASSWORD, APP_PIN (6-digit), SESSION_SECRET
@@ -121,7 +121,7 @@ pytest api/tests collector/tests intel/tests
 
 | Env var | Service | Default | Purpose |
 |---|---|---|---|
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | all | `threatlens` / — / `threatlens` | database credentials |
+| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | all | `watchman` / — / `watchman` | database credentials |
 | `APP_PIN` | api | — (required) | 6-digit dashboard PIN |
 | `SESSION_SECRET` | api | — (required) | cookie signing secret |
 | `SYSLOG_PORT` | collector | `5514` | UDP port inside the container (host maps 514→5514) |
@@ -129,7 +129,7 @@ pytest api/tests collector/tests intel/tests
 | `IOC_REFRESH_SECONDS` | collector | `60` | how often the matcher polls for feed changes |
 | `RETRO_SCAN_HOURS` | collector | `24` | retro-scan window after a feed pull |
 | `PULL_INTERVAL_MINUTES` | intel | `60` | global feed-sweep cadence (per-feed overrides) |
-| `FEED_USER_AGENT` | intel | `ThreatLens/0.1` | User-Agent sent to feed providers |
+| `FEED_USER_AGENT` | intel | `Watchman/0.1` | User-Agent sent to feed providers |
 | `STIX_TAXII_TIMEOUT` | intel | `30` | feed download/poll timeout (s) |
 | `AUTO_SEED_FEEDS` | intel | `1` | register the bundled seed feeds on boot |
 

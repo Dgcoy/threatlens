@@ -1,4 +1,4 @@
-# ThreatLens — UDM syslog → threat-intel detection platform
+# Watchman — UDM syslog → threat-intel detection platform
 # Docker Compose stack (target state; images build as phases 1-4 land code)
 
 services:
@@ -6,13 +6,13 @@ services:
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-threatlens}
+      POSTGRES_USER: ${POSTGRES_USER:-watchman}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-threatlens}
+      POSTGRES_DB: ${POSTGRES_DB:-watchman}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-threatlens}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-watchman}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -28,9 +28,9 @@ services:
       - "514:5514/udp"
     environment:
       SYSLOG_PORT: "5514"
-      POSTGRES_USER: ${POSTGRES_USER:-threatlens}
+      POSTGRES_USER: ${POSTGRES_USER:-watchman}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-threatlens}
+      POSTGRES_DB: ${POSTGRES_DB:-watchman}
       POSTGRES_HOST: db
       IOC_REFRESH_SECONDS: "60"
       RETRO_SCAN_HOURS: "24"
@@ -45,12 +45,12 @@ services:
       dockerfile: intel/Dockerfile
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-threatlens}
+      POSTGRES_USER: ${POSTGRES_USER:-watchman}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-threatlens}
+      POSTGRES_DB: ${POSTGRES_DB:-watchman}
       POSTGRES_HOST: db
       PULL_INTERVAL_MINUTES: "60"      # global sweep cadence (per-feed overrides)
-      FEED_USER_AGENT: "ThreatLens/0.1"
+      FEED_USER_AGENT: "Watchman/0.1"
       STIX_TAXII_TIMEOUT: "30"
     depends_on:
       db:
@@ -65,9 +65,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-threatlens}
+      POSTGRES_USER: ${POSTGRES_USER:-watchman}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-threatlens}
+      POSTGRES_DB: ${POSTGRES_DB:-watchman}
       POSTGRES_HOST: db
       APP_PIN: ${APP_PIN:?set in .env}          # PIN gate (house convention)
       SESSION_SECRET: ${SESSION_SECRET:?set in .env}

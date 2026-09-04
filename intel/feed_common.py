@@ -9,7 +9,7 @@ import requests
 
 from shared.ioc_utils import url_hostname  # noqa: F401  (re-export)
 
-DEFAULT_UA = "ThreatLens/0.1"
+DEFAULT_UA = "Watchman/0.1"
 MAX_BYTES = 20 * 1024 * 1024  # 20 MB cap per feed payload
 
 

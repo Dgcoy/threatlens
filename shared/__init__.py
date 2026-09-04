@@ -1,1 +1,1 @@
-"""Shared modules for ThreatLens services."""
+"""Shared modules for Watchman services."""

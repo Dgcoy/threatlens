@@ -1,4 +1,4 @@
-"""ThreatLens intel engine: scheduled feed pulls → IOC store.
+"""Watchman intel engine: scheduled feed pulls → IOC store.
 
 Boot: apply schema, register default seed feeds (AUTO_SEED_FEEDS=1),
 schedule each enabled feed by its auto_pull_minutes interval, then pull
@@ -33,7 +33,7 @@ from registry import (
 )
 from shared.schema import apply_schema, conn_from_env
 
-USER_AGENT = os.environ.get("FEED_USER_AGENT", "ThreatLens/0.1")
+USER_AGENT = os.environ.get("FEED_USER_AGENT", "Watchman/0.1")
 DEFAULT_TIMEOUT = int(os.environ.get("STIX_TAXII_TIMEOUT", "30"))
 STARTUP_DELAY_MIN = 5          # seconds after boot before first pull sweep
 STARTUP_DELAY_MAX = 180

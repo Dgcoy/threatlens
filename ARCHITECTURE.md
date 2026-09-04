@@ -1,6 +1,6 @@
 # Architecture
 
-ThreatLens is a four-service Docker Compose stack. Each service is a small
+Watchman is a four-service Docker Compose stack. Each service is a small
 Python 3.12 image; all share an idempotent schema in `shared/schema.py` that
 each service applies at startup.
 

@@ -1,4 +1,4 @@
-"""Postgres layer for ThreatLens collector: event inserts + detections.
+"""Postgres layer for Watchman collector: event inserts + detections.
 
 Schema lives in shared/schema.py (applied idempotently by every service).
 """

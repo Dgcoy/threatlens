@@ -25,7 +25,7 @@ TAXII_USER_AGENT = (
 
 
 def _install_browser_ua() -> None:
-    if getattr(requests.Session, "_threatlens_ua", False):
+    if getattr(requests.Session, "_watchman_ua", False):
         return
     orig = requests.Session
 
@@ -34,7 +34,7 @@ def _install_browser_ua() -> None:
             super().__init__(*a, **kw)
             self.headers["User-Agent"] = TAXII_USER_AGENT
 
-    _BrowserUASession._threatlens_ua = True  # type: ignore[attr-defined]
+    _BrowserUASession._watchman_ua = True  # type: ignore[attr-defined]
     requests.Session = _BrowserUASession
 
 

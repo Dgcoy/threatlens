@@ -1,4 +1,4 @@
-"""ThreatLens collector: UDP syslog receiver + detection engine.
+"""Watchman collector: UDP syslog receiver + detection engine.
 
 Listens on 0.0.0.0:SYSLOG_PORT (host maps 514/udp → 5514/udp),
 parses each datagram with unifi_parser, persists events, and matches

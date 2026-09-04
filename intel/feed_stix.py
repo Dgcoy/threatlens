@@ -1,4 +1,4 @@
-"""STIX 2.x bundle parsing → ThreatLens IOC records.
+"""STIX 2.x bundle parsing → Watchman IOC records.
 
 Handles both indicator SDOs (pattern-based) and bare observable SDOs
 (ipv4-addr / ipv6-addr / domain-name / url).
@@ -71,7 +71,7 @@ def _obj_to_ioc(obj: dict) -> dict | None:
             "value": value,
             "description": obj.get("description"),
             "tags": tags or None,
-            "severity": (obj.get("x_threatlens_severity") or obj.get("confidence")),
+            "severity": (obj.get("x_watchman_severity") or obj.get("confidence")),
             "reference": _ref_url(obj),
             "first_seen": obj.get("created"),
             "last_seen": obj.get("modified"),

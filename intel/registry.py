@@ -167,7 +167,7 @@ def register_default_feeds(conn) -> list[str]:
                 """INSERT INTO feeds (name, type, source_url, parser_config, auto_pull_minutes)
                    VALUES (%(name)s, %(type)s, %(source_url)s,
                            %(parser_config)s, %(auto_pull_minutes)s)
-                   ON CONFLICT (name) DO UPDATE SET
+                   ON CONFLICT (name) WHERE (deleted_at IS NULL) DO UPDATE SET
                        type = EXCLUDED.type,
                        source_url = EXCLUDED.source_url,
                        parser_config = EXCLUDED.parser_config,

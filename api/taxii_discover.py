@@ -60,7 +60,7 @@ def discover_taxii(discovery_url: str, auth=None, timeout: int = DEFAULT_TIMEOUT
     path = discovery_url.split("?", 1)[0].rstrip("/")
     if path.endswith("/discovery") or path.endswith("/taxii/discovery"):
         raise ValueError(
-            "that looks like a TAXII 1.x discovery URL — ThreatLens supports "
+            "that looks like a TAXII 1.x discovery URL — Watchman supports "
             "TAXII 2.0/2.1. Use the server's TAXII 2.x discovery URL "
             "(AlienVault OTX: https://otx.alienvault.com/taxii/)")
     last_error = None

@@ -1,4 +1,4 @@
-"""Query layer for the ThreatLens dashboard API."""
+"""Query layer for the Watchman dashboard API."""
 
 from __future__ import annotations
 

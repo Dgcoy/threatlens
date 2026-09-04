@@ -1,4 +1,4 @@
-"""Shared schema + connection helpers for all ThreatLens services.
+"""Shared schema + connection helpers for all Watchman services.
 
 Every service image gets `shared/` copied in and applies the idempotent
 schema at startup, so the platform self-provisions on first boot.
@@ -139,9 +139,9 @@ def conn_from_env() -> psycopg2.extensions.connection:
     conn = psycopg2.connect(
         host=os.environ.get("POSTGRES_HOST", "localhost"),
         port=int(os.environ.get("POSTGRES_PORT", "5432")),
-        user=os.environ.get("POSTGRES_USER", "threatlens"),
+        user=os.environ.get("POSTGRES_USER", "watchman"),
         password=os.environ.get("POSTGRES_PASSWORD", ""),
-        dbname=os.environ.get("POSTGRES_DB", "threatlens"),
+        dbname=os.environ.get("POSTGRES_DB", "watchman"),
     )
     conn.autocommit = True
     return conn

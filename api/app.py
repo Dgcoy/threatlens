@@ -1,4 +1,4 @@
-"""ThreatLens dashboard API (FastAPI).
+"""Watchman dashboard API (FastAPI).
 
 PIN-gated (house convention): APP_PIN + signed session cookie.
 Static dashboard pages served from ./static with zero outbound requests.
@@ -206,7 +206,7 @@ async def poll_loop(app: FastAPI, interval: float = 1.0) -> None:
             await asyncio.sleep(interval)
 
 
-app = FastAPI(title="ThreatLens", lifespan=lifespan)
+app = FastAPI(title="Watchman", lifespan=lifespan)
 app.add_middleware(AuthMiddleware)
 
 
